@@ -16,7 +16,7 @@ type DirectoryShortcut = {
 
 const { Text, Title } = Typography;
 const expandedSize = { width: 400, height: 355 };
-const collapsedSize = { width: 56, height: 56 };
+const collapsedSize = { width: 60, height: 60 };
 const animationDurationMs = 280;
 const directoryStorageKey = 'bubble.quickDirectories';
 
