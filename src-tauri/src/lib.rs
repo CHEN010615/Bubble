@@ -5,6 +5,12 @@ use std::{
 };
 
 use serde::Serialize;
+use tauri::{
+    Manager,
+    image::Image,
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+};
 
 #[derive(Debug, Serialize)]
 struct HealthResponse {
@@ -85,6 +91,10 @@ fn open_folder(path: String) -> Result<(), String> {
 
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            create_tray_icon(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             desktop_health,
             list_node_versions,
@@ -93,6 +103,45 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Bubble desktop app");
+}
+
+fn create_tray_icon(app: &tauri::App) -> tauri::Result<()> {
+    let show_item = MenuItem::with_id(app, "show-bubble", "Show Bubble", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit-bubble", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+    let icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?;
+
+    TrayIconBuilder::with_id("bubble-tray")
+        .tooltip("Bubble")
+        .icon(icon)
+        .icon_as_template(cfg!(target_os = "macos"))
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        })
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show-bubble" => show_main_window(app),
+            "quit-bubble" => app.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+fn show_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 fn run_nvm_command(args: &[&str]) -> Result<String, String> {
@@ -154,9 +203,9 @@ fn is_node_version(value: &str) -> bool {
     let parts = version.split('.').collect::<Vec<_>>();
 
     parts.len() == 3
-        && parts
-            .iter()
-            .all(|part| !part.is_empty() && part.chars().all(|character| character.is_ascii_digit()))
+        && parts.iter().all(|part| {
+            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
+        })
 }
 
 fn ensure_existing_directory(path: &str) -> Result<String, String> {

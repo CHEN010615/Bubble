@@ -34,6 +34,9 @@
   },
   "bundle": {
     "active": false,
+    "icon": [
+      "icons/icon.png"
+    ],
     "targets": "all"
   }
 }
