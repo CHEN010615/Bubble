@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for the Bubble floating window",
+  "windows": ["main"],
+  "permissions": ["core:default", "core:window:allow-start-dragging", "core:window:allow-set-size"]
+}

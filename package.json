@@ -1,0 +1,24 @@
+{
+  "name": "bubble",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:backend": "node scripts/run-command.mjs cargo run --manifest-path backend/Cargo.toml",
+    "dev:frontend": "node scripts/run-command.mjs npm --workspace frontend run dev",
+    "desktop:dev": "node scripts/run-command.mjs npx tauri dev",
+    "desktop:build": "node scripts/run-command.mjs npx tauri build",
+    "desktop:test": "node scripts/run-command.mjs cargo test --manifest-path src-tauri/Cargo.toml",
+    "build": "node scripts/build.mjs",
+    "build:frontend": "node scripts/run-command.mjs npm --workspace frontend run build",
+    "build:backend": "node scripts/run-command.mjs cargo build --manifest-path backend/Cargo.toml",
+    "start": "node scripts/run-command.mjs cargo run --manifest-path backend/Cargo.toml",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.3"
+  }
+}
