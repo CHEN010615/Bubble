@@ -16,11 +16,13 @@ body {
   min-width: 56px;
   min-height: 100vh;
   background: transparent;
+  overflow: hidden;
 }
 
 #root {
   min-height: 100vh;
   background: transparent;
+  overflow: hidden;
 }
 
 .floating-shell {
@@ -32,9 +34,9 @@ body {
   user-select: none;
   -webkit-user-select: none;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    background 280ms ease,
+    border-color 280ms ease,
+    box-shadow 280ms ease;
 }
 
 .floating-shell.is-expanded {
@@ -214,6 +216,24 @@ body {
   scrollbar-width: thin;
 }
 
+/* 自定义滚动条 — 透明背景 + 暗色滑块，非 macOS 平台生效 */
+.folder-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.folder-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.folder-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+}
+
+.folder-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+
 .folder-section.is-empty .folder-list {
   display: grid;
   height: 96px;
@@ -319,4 +339,27 @@ body {
   font-size: 12px;
   line-height: 14px;
   color: rgba(226, 232, 240, 0.62) !important;
+}
+
+/* ============================
+   Scrollbar — macOS isolation
+   macOS WKWebView 使用 WebKit 渲染，
+   通过 .is-macos 选择器隔离，不影响 Chromium 平台
+   ============================ */
+.is-macos ::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+.is-macos ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.is-macos ::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.is-macos .folder-list {
+  scrollbar-width: none;
 }

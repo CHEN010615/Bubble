@@ -1,4 +1,4 @@
-import { CheckOutlined, CloudServerOutlined, DeleteOutlined, EditOutlined, FolderOpenOutlined, PlusOutlined } from '@ant-design/icons';
+import { CheckOutlined, SendOutlined, DeleteOutlined, EditOutlined, FolderOpenOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, ConfigProvider, Empty, Flex, Input, Select, Space, Typography, message, theme } from 'antd';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
@@ -17,7 +17,7 @@ type DirectoryShortcut = {
 const { Text, Title } = Typography;
 const expandedSize = { width: 400, height: 355 };
 const collapsedSize = { width: 56, height: 56 };
-const animationDurationMs = 180;
+const animationDurationMs = 280;
 const directoryStorageKey = 'bubble.quickDirectories';
 
 function App() {
@@ -33,8 +33,16 @@ function App() {
   const animationTokenRef = useRef(0);
   const currentSizeRef = useRef(expandedSize);
   const isInteractingRef = useRef(false);
+  const isDraggingRef = useRef(false);
   const hasLoadedVersionsRef = useRef(false);
+  const headerCopyRef = useRef<HTMLDivElement>(null);
   const [messageApi, contextHolder] = message.useMessage();
+
+  useEffect(() => {
+    if (navigator.platform?.startsWith('Mac')) {
+      document.documentElement.classList.add('is-macos');
+    }
+  }, []);
 
   const loadNodeVersions = useCallback(async () => {
     if (hasLoadedVersionsRef.current) {
@@ -67,9 +75,10 @@ function App() {
     localStorage.setItem(directoryStorageKey, JSON.stringify(directories));
   }, [directories]);
 
-  const animateToSize = useCallback((targetSize: WindowSize) => {
+  const animateToSize = useCallback((targetSize: WindowSize, onComplete?: () => void) => {
     if (!isTauriRuntime()) {
       currentSizeRef.current = targetSize;
+      onComplete?.();
       return;
     }
 
@@ -84,7 +93,7 @@ function App() {
       }
 
       const progress = Math.min((now - startedAt) / animationDurationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      const eased = 1 - Math.pow(1 - progress, 4);
       const nextSize = {
         width: Math.round(startSize.width + (targetSize.width - startSize.width) * eased),
         height: Math.round(startSize.height + (targetSize.height - startSize.height) * eased)
@@ -98,31 +107,68 @@ function App() {
       } else {
         currentSizeRef.current = targetSize;
         void resizeWindow(targetSize);
+        onComplete?.();
       }
     };
 
     requestAnimationFrame(step);
   }, []);
 
+  useEffect(() => {
+    const handleBlur = () => {
+      if (isDraggingRef.current) {
+        return;
+      }
+
+      isDraggingRef.current = false;
+
+      if (!document.querySelector('.floating-shell:hover')) {
+        animateToSize(collapsedSize, () => setIsCollapsed(true));
+      }
+    };
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, [animateToSize]);
+
+  useEffect(() => {
+    const onDown = () => { isDraggingRef.current = true; };
+    const onUp = () => { isDraggingRef.current = false; };
+    window.addEventListener('mousedown', onDown, true);
+    window.addEventListener('mouseup', onUp, true);
+    return () => {
+      window.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('mouseup', onUp, true);
+    };
+  }, []);
+
   const handleExpand = useCallback(() => {
+    isDraggingRef.current = false;
+
     if (!isTauriRuntime() || !isCollapsed) {
       return;
     }
 
+    // 展开前恢复文字，和内联 display:none 冲突解除
+    if (headerCopyRef.current) {
+      headerCopyRef.current.style.display = '';
+    }
     setIsCollapsed(false);
     animateToSize(expandedSize);
   }, [animateToSize, isCollapsed]);
 
   const handleCollapse = useCallback(() => {
-    if (!isTauriRuntime() || isCollapsed || isInteractingRef.current) {
+    if (!isTauriRuntime() || isCollapsed || isInteractingRef.current || isDraggingRef.current) {
       return;
     }
 
-    setIsCollapsed(true);
-    animateToSize(collapsedSize);
+    // 立即隐藏文字，避免收缩过程中文字挤压图标
+    if (headerCopyRef.current) {
+      headerCopyRef.current.style.display = 'none';
+    }
+    animateToSize(collapsedSize, () => setIsCollapsed(true));
   }, [animateToSize, isCollapsed]);
 
-  const handleWindowDrag = useCallback((event: MouseEvent<HTMLElement>) => {
+  const handleWindowDragStart = useCallback((event: MouseEvent<HTMLElement>) => {
     if (!isTauriRuntime() || event.button !== 0) {
       return;
     }
@@ -131,8 +177,22 @@ function App() {
       return;
     }
 
-    void getCurrentWindow().startDragging().catch(() => undefined);
+    isDraggingRef.current = true;
+    getCurrentWindow().startDragging().catch(() => {
+      // startDragging 失败不重置 isDraggingRef，
+      // 由 capture-phase mouseup 或 handleExpand 统一清除
+    });
   }, []);
+
+  const handleWindowDragEnd = useCallback((event: MouseEvent<HTMLElement>) => {
+    if (!isTauriRuntime() || event.button !== 0) {
+      return;
+    }
+
+    if (!document.querySelector('.floating-shell:hover')) {
+      animateToSize(collapsedSize, () => setIsCollapsed(true));
+    }
+  }, [animateToSize]);
 
   const handleVersionChange = useCallback(
     async (version: string) => {
@@ -141,7 +201,6 @@ function App() {
 
       try {
         await invoke('switch_node_version', { version });
-        messageApi.success(`Node ${version} selected`);
       } catch (error) {
         messageApi.error(toErrorMessage(error));
       } finally {
@@ -239,17 +298,18 @@ function App() {
       {contextHolder}
       <main
         className={`floating-shell ${isCollapsed ? 'is-collapsed' : 'is-expanded'}`}
-        onMouseDown={handleWindowDrag}
+        onMouseDown={handleWindowDragStart}
+        onMouseUp={handleWindowDragEnd}
         onMouseEnter={handleExpand}
         onMouseLeave={handleCollapse}
       >
         <header className="app-header">
           <div className="window-icon" aria-label="Bubble">
-            <CloudServerOutlined className="brand-icon" />
+            <SendOutlined className="brand-icon" />
           </div>
-          <div className="header-copy">
+          <div className="header-copy" ref={headerCopyRef}>
             <Title level={1}>Quick Tools</Title>
-            <Text className="eyebrow">Developer Float</Text>
+            <Text className="eyebrow">Developer Bubble</Text>
           </div>
         </header>
 

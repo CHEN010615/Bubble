@@ -7,7 +7,7 @@ edition = "2024"
 build = "build.rs"
 
 [lib]
-name = "bubble_desktop"
+name = "bubble_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
